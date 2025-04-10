@@ -345,4 +345,131 @@ function handleUserInput(userId, message, session, replyToken) {
 
 /* 各步驟的提示函式，包含返回上一階段按鈕 */
 function promptMainMenu(replyToken) {
-  replyMessag
+  replyMessage(replyToken, {
+    type: "text",
+    text: "請選擇操作：",
+    quickReply: {
+      items: [
+        { type: "action", action: { type: "message", label: "我要預約", text: "我要預約" } },
+        { type: "action", action: { type: "message", label: "查詢價格", text: "查詢價格" } },
+        { type: "action", action: { type: "message", label: "更改預約", text: "更改預約" } }
+      ]
+    }
+  });
+}
+
+function promptCategory(replyToken) {
+  // 大分類選項：使用 Carousel 或 Quick Reply
+  // 這裡採用 Quick Reply 形式
+  replyMessage(replyToken, {
+    type: "text",
+    text: "請選擇服務類別：",
+    quickReply: {
+      items: Object.keys(serviceData).map(cat => ({
+        type: "action",
+        action: { type: "message", label: cat, text: cat }
+      })).concat([backButton])
+    }
+  });
+}
+
+function promptSubcategory(category, replyToken) {
+  let options = serviceData[category].subOptions;
+  // 加上返回按鈕 (返回上一步，回到大分類)
+  options = options.concat(["返回"]);
+  replyMessage(replyToken, {
+    type: "text",
+    text: `請選擇${category}方案：`,
+    quickReply: {
+      items: quickReplyItems(options)
+    }
+  });
+}
+
+function promptCarType(serviceOption, replyToken) {
+  replyMessage(replyToken, {
+    type: "text",
+    text: `請選擇您的車型：（如不確定，參考範例如下）
+・一般轎車：Altis、Mazda3、Focus...
+・大型轎車：Camry、Accord、BMW 5 系列以上
+・休旅車：RAV4、CR-V、Outlander、Model X`,
+    quickReply: {
+      items: quickReplyItems(["一般轎車", "大型轎車", "休旅車", "返回"])
+    }
+  });
+}
+
+function promptDate(replyToken) {
+  // 這裡由於 LINE 沒有內建日期選擇 Quick Reply，可以提示用戶
+  replyMessage(replyToken, {
+    type: "text",
+    text: "請輸入預約日期 (格式：YYYY-MM-DD)。例如：2025-04-20",
+    quickReply: { items: [backButton] }
+  });
+}
+
+function promptTime(replyToken) {
+  replyMessage(replyToken, {
+    type: "text",
+    text: "請選擇預約時段：",
+    quickReply: {
+      items: quickReplyItems(["早上", "下午", "晚上", "返回"])
+    }
+  });
+}
+
+function promptConfirmation(replyToken, data) {
+  const summary = `請確認以下預約資訊：
+服務類別：${data.category}
+服務方案：${data.service}
+車型：${data.carType}
+價格：${servicePricing[data.service] ? servicePricing[data.service][data.carType] : "待議"} 元
+日期：${data.date}
+時段：${data.time}
+電話：${data.phone}
+取車地點：${data.location}
+備註：${data.remark || "無"}`;
+  replyMessage(replyToken, { type: "text", text: summary });
+  setTimeout(() => {
+    replyMessage(replyToken, {
+      type: "template",
+      altText: "預約確認",
+      template: {
+        type: "confirm",
+        text: "是否確認送出這筆預約？",
+        actions: [
+          { type: "message", label: "確認送出", text: "確認送出" },
+          { type: "message", label: "重新填寫", text: "重新填寫" }
+        ]
+      }
+    });
+  }, 500);
+}
+
+/* LINE webhook 處理 */
+app.post("/webhook", async (req, res) => {
+  const events = req.body.events;
+  if (!events || events.length === 0) return res.sendStatus(200);
+
+  const event = events[0];
+  if (event.type === "message" && event.message.type === "text") {
+    const userId = event.source.userId;
+    const userMessage = event.message.text.trim();
+
+    // 若無 session 則建立預設 session
+    if (!sessions.has(userId)) {
+      sessions.set(userId, { step: "idle", data: {} });
+    }
+    const session = sessions.get(userId);
+    handleUserInput(userId, userMessage, session, event.replyToken);
+  }
+  res.sendStatus(200);
+});
+
+app.get("/", (req, res) => {
+  res.send("ZUNO Bot 正在運作中");
+});
+
+app.listen(port, () => {
+  console.log(`伺服器運行中：http://localhost:${port}`);
+});
