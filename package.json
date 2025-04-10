@@ -1,0 +1,14 @@
+{
+  "name": "zuno-line-bot",
+  "version": "1.0.0",
+  "description": "ZUNO 行動汽美 LINE Bot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.0",
+    "express": "^4.18.2",
+    "node-fetch": "^2.6.7"
+  }
+}
