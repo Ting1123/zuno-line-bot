@@ -32,7 +32,7 @@ async function replyMessage(replyToken, messages) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': Bearer ${accessToken}
       },
       body: JSON.stringify({
         replyToken,
@@ -41,6 +41,7 @@ async function replyMessage(replyToken, messages) {
     });
     if (!response.ok) {
       console.error('LINE API 回應錯誤:', await response.text());
+      // 可根據需求添加重試邏輯或通知管理員
     }
   } catch (error) {
     console.error('發送訊息失敗:', error);
@@ -52,26 +53,50 @@ function handleUserInput(userId, message, session, replyToken) {
 
   if (message === '我要預約') {
     sessions.set(userId, { step: 'askService', data: {} });
-    replyMessage(replyToken, '請輸入服務項目（例如：深層護理、鍍膜1年期）');
+    replyMessage(replyToken, {
+      type: 'text',
+      text: '請選擇服務項目：',
+      quickReply: {
+        items: Object.keys(servicePricing).map(service => ({
+          type: 'action',
+          action: { type: 'message', label: service, text: service }
+        }))
+      }
+    });
     return;
   }
 
   if (step === 'askService') {
     if (!servicePricing[message]) {
-      const services = Object.keys(servicePricing).join('、');
-      replyMessage(replyToken, `找不到此服務，請輸入以下服務之一：${services}`);
+      replyMessage(replyToken, '請從按鈕中選擇有效的服務項目');
       return;
     }
     data.service = message;
     session.step = 'askCarType';
-    replyMessage(replyToken, '請輸入車型（一般轎車、大型轎車、休旅車）');
+    replyMessage(replyToken, {
+      type: 'text',
+      text: `請選擇您的車型（如不確定，以下為參考範圍）：
+・一般轎車：Altis、Mazda3、Focus...
+・大型轎車：Camry、Accord、BMW 5 系列以上
+・休旅車：RAV4、CR-V、Outlander、Model Y...`
+    });
+    replyMessage(replyToken, {
+      type: 'text',
+      text: '請點選您的車型：',
+      quickReply: {
+        items: ['一般轎車', '大型轎車', '休旅車'].map(label => ({
+          type: 'action',
+          action: { type: 'message', label, text: label }
+        }))
+      }
+    });
     return;
   }
 
   if (step === 'askCarType') {
     const validTypes = ['一般轎車', '大型轎車', '休旅車'];
     if (!validTypes.includes(message)) {
-      replyMessage(replyToken, '請輸入正確車型：一般轎車、大型轎車、休旅車');
+      replyMessage(replyToken, '請點選有效的車型按鈕');
       return;
     }
     data.carType = message;
@@ -88,25 +113,34 @@ function handleUserInput(userId, message, session, replyToken) {
     }
     data.date = message;
     session.step = 'askTime';
-    replyMessage(replyToken, '請輸入時段（早上 / 下午 / 晚上）');
+    replyMessage(replyToken, {
+      type: 'text',
+      text: '請選擇預約時段：',
+      quickReply: {
+        items: ['早上', '下午', '晚上'].map(label => ({
+          type: 'action',
+          action: { type: 'message', label, text: label }
+        }))
+      }
+    });
     return;
   }
 
   if (step === 'askTime') {
     const validTimes = ['早上', '下午', '晚上'];
     if (!validTimes.includes(message)) {
-      replyMessage(replyToken, '請輸入正確時段：早上 / 下午 / 晚上');
+      replyMessage(replyToken, '請選擇有效時段：早上／下午／晚上');
       return;
     }
     data.time = message;
     session.step = 'askPhone';
-    replyMessage(replyToken, '請輸入聯絡電話');
+    replyMessage(replyToken, '請輸入聯絡電話（8～12 位數）');
     return;
   }
 
   if (step === 'askPhone') {
     if (!/^\d{8,12}$/.test(message)) {
-      replyMessage(replyToken, '電話號碼格式錯誤，請輸入 8-12 位數字');
+      replyMessage(replyToken, '電話號碼格式錯誤，請輸入 8～12 位數字');
       return;
     }
     data.phone = message;
@@ -121,9 +155,8 @@ function handleUserInput(userId, message, session, replyToken) {
       return;
     }
     data.location = message;
-    session.step = 'completed';
-
-    const summary = `預約完成！
+    session.step = 'confirm';
+    const summary = `請確認以下預約資訊：
 服務項目：${data.service}
 車型：${data.carType}
 價格：${servicePricing[data.service][data.carType]} 元
@@ -131,13 +164,48 @@ function handleUserInput(userId, message, session, replyToken) {
 時段：${data.time}
 電話：${data.phone}
 地點：${data.location}`;
-
-    replyMessage(replyToken, summary);
-    sessions.delete(userId);
+    replyMessage(replyToken, { type: 'text', text: summary });
+    replyMessage(replyToken, {
+      type: 'template',
+      altText: '預約確認',
+      template: {
+        type: 'confirm',
+        text: '是否確認送出這筆預約？',
+        actions: [
+          { type: 'message', label: '確認送出', text: '確認預約' },
+          { type: 'message', label: '重新填寫', text: '重新預約' }
+        ]
+      }
+    });
     return;
   }
 
-  replyMessage(replyToken, '請輸入「我要預約」來開始預約流程');
+  if (step === 'confirm') {
+    if (message === '確認預約') {
+      replyMessage(replyToken, '✅ 已收到您的預約，我們將盡快與您聯繫！');
+      sessions.delete(userId);
+      return;
+    }
+    if (message === '重新預約') {
+      sessions.set(userId, { step: 'askService', data: {} });
+      replyMessage(replyToken, {
+        type: 'text',
+        text: '好的，我們重新開始預約，請選擇服務項目：',
+        quickReply: {
+          items: Object.keys(servicePricing).map(service => ({
+            type: 'action',
+            action: { type: 'message', label: service, text: service }
+          }))
+        }
+      });
+      return;
+    }
+    replyMessage(replyToken, '請點選「確認送出」或「重新填寫」');
+    return;
+  }
+
+  // 默認錯誤處理
+  replyMessage(replyToken, '請輸入「我要預約」來開始，或繼續當前預約流程');
 }
 
 app.post('/webhook', async (req, res) => {
@@ -161,7 +229,7 @@ app.post('/webhook', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.send('ZUNO Bot 正在運行中');
+  res.send('ZUNO Bot 正在運作中');
 });
 
 app.listen(port, () => {
