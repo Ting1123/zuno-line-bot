@@ -27,7 +27,7 @@ app.post('/webhook', async (req, res) => {
       replyToken: replyToken,
       messages: [{
         type: 'text',
-        text: 你說的是：「${userMessage}」
+        text: `你說的是：「${userMessage}」`
       }]
     };
 
@@ -36,7 +36,7 @@ app.post('/webhook', async (req, res) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': Bearer ${accessToken}
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify(replyMessage)
       });
