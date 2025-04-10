@@ -32,7 +32,7 @@ async function replyMessage(replyToken, messages) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': Bearer ${accessToken}
+        'Authorization': `Bearer ${accessToken}`
       },
       body: JSON.stringify({
         replyToken,
@@ -78,7 +78,7 @@ function handleUserInput(userId, message, session, replyToken) {
       text: `請選擇您的車型（如不確定，以下為參考範圍）：
 ・一般轎車：Altis、Mazda3、Focus...
 ・大型轎車：Camry、Accord、BMW 5 系列以上
-・休旅車：RAV4、CR-V、Outlander、Model Y...`
+・休旅車：RAV4、CR-V、Outlander、Model X...`
     });
     replyMessage(replyToken, {
       type: 'text',
